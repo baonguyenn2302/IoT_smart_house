@@ -1,0 +1,63 @@
+# ================================================================
+# SMART HOUSE IOT - HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG
+# ================================================================
+
+# 1. KHỞI CHẠY & CẤU HÌNH CƠ SỞ DỮ LIỆU (MySQL)
+# ----------------------------------------------------------------
+# Đăng nhập MySQL và chạy lần lượt các script khởi tạo CSDL:
+mysql -u root -p < database/init.sql
+mysql -u baonguyenn2302 -p'Bao@23022005' smart_house < database/schema.sql
+mysql -u baonguyenn2302 -p'Bao@23022005' smart_house < database/seed.sql
+
+# 2. KHỞI CHẠY MQTT BROKER (Mosquitto)
+# ----------------------------------------------------------------
+# Trên macOS (Homebrew):
+brew services start mosquitto
+# Hoặc chạy trực tiếp xem log:
+mosquitto -c /opt/homebrew/etc/mosquitto/mosquitto.conf -v
+
+# 3. KHỞI CHẠY BACKEND (FastAPI)
+# ----------------------------------------------------------------
+cd backend
+
+# Tạo và kích hoạt môi trường ảo (nếu chưa có):
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Cài đặt thư viện dependencies:
+pip install -r requirements.txt
+
+# Khởi chạy server FastAPI:
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 4. TẠO BẢN GHI MOCK DATA (Dữ liệu mẫu cho DB)
+# ----------------------------------------------------------------
+# Đảm bảo đang ở thư mục backend và đã kích hoạt môi trường ảo (.venv):
+cd backend
+source .venv/bin/activate
+python -m app.seed_mock
+
+# 5. KHỞI CHẠY FRONTEND (React + Vite)
+# ----------------------------------------------------------------
+cd frontend
+
+# Cài đặt dependencies (lần đầu):
+npm install
+
+# Khởi chạy giao diện React:
+npm run dev
+
+# 6. CẤU HÌNH & NẠP CODE ESP32 (MicroPython)
+# ----------------------------------------------------------------
+# Sao chép và cấu hình thông tin WiFi & MQTT Broker:
+cp esp32/secrets.py.example esp32/secrets.py
+# Nạp main.py và secrets.py vào ESP32 bằng mpremote / Thonny IDE / ampy
+
+# ================================================================
+# ĐƯỜNG DẪN TRUY CẬP NHANH:
+# - Giao diện Web (Frontend):  http://localhost:5173
+# - Swagger API Docs:          http://localhost:8000/docs
+# - ReDoc API Docs:            http://localhost:8000/redoc
+# - API Health Check:          http://localhost:8000/api/health
+# - MQTT Broker Port:          1883 (hoặc 1880 tùy cấu hình .env)
+# ================================================================
