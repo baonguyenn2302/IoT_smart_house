@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, RotateCw, Search } from "lucide-react";
 import { api } from "../api/client";
+import CopyTime from "../components/CopyTime";
 import Pagination from "../components/Pagination";
 
 const SORT_OPTIONS = [
@@ -173,7 +174,9 @@ export default function ActionHistory() {
                     {STATUS_LABEL[it.status]}
                   </span>
                 </td>
-                <td>{it.recorded_at.replace("T", " ")}</td>
+                <td>
+                  <CopyTime value={it.recorded_at.replace("T", " ")} />
+                </td>
               </tr>
             ))}
           </tbody>

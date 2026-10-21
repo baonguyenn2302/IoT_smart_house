@@ -965,3 +965,27 @@ td.id {
 .logout:hover {
   background: #f3f4f6;
 }
+
+/* ===== Nút sao chép thời gian ===== */
+.time-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+}
+.copy-btn:hover {
+  background: #f3f4f6;
+  color: #2563eb;
+}

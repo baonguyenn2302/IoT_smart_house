@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, RotateCw, Search } from "lucide-react";
 import { api } from "../api/client";
+import CopyTime from "../components/CopyTime";
 import Pagination from "../components/Pagination";
 
 const SEARCH_FIELDS = [
@@ -140,7 +141,9 @@ export default function DataSensor() {
                   {it.value}
                   {it.sensor.unit}
                 </td>
-                <td>{it.recorded_at.replace("T", " ")}</td>
+                <td>
+                  <CopyTime value={it.recorded_at.replace("T", " ")} />
+                </td>
               </tr>
             ))}
           </tbody>
