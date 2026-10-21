@@ -13,10 +13,12 @@ const STATUS_LABEL = {
   PENDING: "Pending",
   FAILED: "Failed",
 };
+const DEBOUNCE_MS = 300;
 
 export default function ActionHistory() {
   const [devices, setDevices] = useState([]);
   const [keyword, setKeyword] = useState("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [sort, setSort] = useState(""); // "" nghĩa là dùng mặc định của API (mới nhất trước)
   const [deviceId, setDeviceId] = useState("");
   const [status, setStatus] = useState("");
@@ -29,10 +31,20 @@ export default function ActionHistory() {
     api.get("/devices").then((r) => setDevices(r.data));
   }, []);
 
+  // Chờ người dùng ngừng gõ rồi mới gọi API
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setDebouncedKeyword(keyword);
+      setPage(1);
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [keyword]);
+
   useEffect(() => {
     api
       .get("/actions", {
         params: {
+          q: debouncedKeyword || undefined,
           device_id: deviceId || undefined,
           status: status || undefined,
           action: action || undefined,
@@ -42,21 +54,12 @@ export default function ActionHistory() {
         },
       })
       .then((r) => setData(r.data));
-  }, [deviceId, status, action, sort, page, size]);
+  }, [debouncedKeyword, deviceId, status, action, sort, page, size]);
 
   function handleSortChange(e) {
     setSort(e.target.value);
     setPage(1);
   }
-
-  // Tìm kiếm chỉ lọc trên trang hiện tại vì API chưa có tham số q
-  const visible = keyword
-    ? data.items.filter((it) =>
-        `${it.device.name} ${it.user?.full_name ?? "Hệ thống"}`
-          .toLowerCase()
-          .includes(keyword.toLowerCase()),
-      )
-    : data.items;
 
   const withReset = (setter) => (e) => {
     setter(e.target.value);
@@ -65,6 +68,7 @@ export default function ActionHistory() {
 
   function reset() {
     setKeyword("");
+    setDebouncedKeyword("");
     setSort("");
     setDeviceId("");
     setStatus("");
@@ -85,7 +89,7 @@ export default function ActionHistory() {
         <label className="control search">
           <Search size={16} />
           <input
-            placeholder="Search sensor data..."
+            placeholder="Search action history..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -154,7 +158,7 @@ export default function ActionHistory() {
             </tr>
           </thead>
           <tbody>
-            {visible.map((it) => (
+            {data.items.map((it) => (
               <tr key={it.id}>
                 <td className="id">#{String(it.id).padStart(3, "0")}</td>
                 <td>{it.device.name}</td>
@@ -180,7 +184,7 @@ export default function ActionHistory() {
         page={page}
         size={size}
         total={data.total}
-        count={visible.length}
+        count={data.items.length}
         onPage={setPage}
         onSize={(s) => {
           setSize(s);

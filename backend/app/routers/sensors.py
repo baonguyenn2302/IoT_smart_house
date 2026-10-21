@@ -107,17 +107,19 @@ def list_sensor_data(
         query = query.where(DataSensor.recorded_at <= to_time)
 
     if q and q.strip():
-        pattern = f"%{q.strip()}%"
+        # Cho phép gõ cả "T" thay cho khoảng trắng, ví dụ 2026-10-21T12:31:24
+        keyword = q.strip().replace("T", " ")
+        pattern = f"%{keyword}%"
         value_text = cast(DataSensor.value, String)
-        # Định dạng giống cách hiển thị trên giao diện: 19/08/2026 12:00:00
-        time_text = func.date_format(DataSensor.recorded_at, "%d/%m/%Y %H:%i:%s")
+        # Hai định dạng thời gian: kiểu hiển thị (21/10/2026 12:31:24) và kiểu ISO (2026-10-21 12:31:24)
+        time_vn = func.date_format(DataSensor.recorded_at, "%d/%m/%Y %H:%i:%s")
+        time_iso = func.date_format(DataSensor.recorded_at, "%Y-%m-%d %H:%i:%s")
+        time_match = or_(time_vn.like(pattern), time_iso.like(pattern))
 
         if field == SearchField.ALL:
-            query = query.where(
-                or_(Sensor.name.like(pattern), value_text.like(pattern), time_text.like(pattern))
-            )
+            query = query.where(or_(Sensor.name.like(pattern), value_text.like(pattern), time_match))
         elif field == SearchField.TIME:
-            query = query.where(time_text.like(pattern))
+            query = query.where(time_match)
         else:
             query = query.where(
                 Sensor.name == SENSOR_NAME_BY_FIELD[field],

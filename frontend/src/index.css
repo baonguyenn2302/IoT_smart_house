@@ -4,7 +4,8 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   background: #f8f9fb;
   color: #1f2937;
 }
@@ -27,6 +28,9 @@ h3 {
   border-right: 1px solid #e5e7eb;
   padding: 24px 16px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 .brand {
@@ -122,8 +126,8 @@ h3 {
   padding: 18px 20px;
 }
 
-.card+.card,
-.section+.section {
+.card + .card,
+.section + .section {
   margin-top: 16px;
 }
 
@@ -841,17 +845,31 @@ td.id {
 }
 
 /* ===== Max lux ===== */
-.chart-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.chart-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .max-tag {
-  font-size: 12px; font-weight: 600; color: #15803d;
-  background: #dcfce7; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 3px 10px;
+  border-radius: 999px;
 }
 
 /* ===== Dropdown: ẩn mũi tên mặc định của trình duyệt ===== */
-.control select { appearance: none; -webkit-appearance: none; }
+.control select {
+  appearance: none;
+  -webkit-appearance: none;
+}
 
 /* ===== Đồng bộ kích thước thẻ cảm biến và biểu đồ ===== */
-.sensor-cards { align-items: stretch; }
+.sensor-cards {
+  align-items: stretch;
+}
 .sensor-cards > .card,
 .charts > .card {
   margin: 0;
@@ -863,4 +881,87 @@ td.id {
   flex-direction: column;
   justify-content: space-between;
 }
-.sensor-value { margin-top: 0; }
+.sensor-value {
+  margin-top: 0;
+}
+
+/* ===== Đăng nhập & đăng xuất ===== */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fb;
+}
+.login-card {
+  width: 360px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.login-brand strong {
+  font-size: 17px;
+}
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #4b5563;
+}
+.login-field input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  color: #1f2937;
+}
+.login-field input:focus {
+  outline: 2px solid #bfdbfe;
+  border-color: #2563eb;
+}
+.login-submit {
+  width: 100%;
+  padding: 10px;
+  margin-top: 4px;
+}
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.form-error {
+  font-size: 13px;
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.logout {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #4b5563;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  width: 100%;
+}
+.logout:hover {
+  background: #f3f4f6;
+}

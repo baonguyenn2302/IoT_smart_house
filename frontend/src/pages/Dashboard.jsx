@@ -211,7 +211,8 @@ export default function Dashboard() {
                 dataKey="time"
                 interval={0}
                 angle={-30}
-                height={80}
+                height={50}
+                tickMargin={10}
                 tick={{ fontSize: 10, fill: "#6b7280" }}
                 tickLine={false}
                 axisLine={AXIS_LINE}
@@ -262,7 +263,8 @@ export default function Dashboard() {
                 dataKey="time"
                 interval={0}
                 angle={-30}
-                height={80}
+                height={50}
+                tickMargin={10}
                 tick={AXIS_TICK}
                 tickLine={false}
                 axisLine={AXIS_LINE}

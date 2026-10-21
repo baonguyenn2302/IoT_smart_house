@@ -92,3 +92,21 @@ class DeviceStatusPayload(BaseModel):
         if isinstance(value, str):
             return value.strip().upper()
         return value
+
+# ===== Auth & User =====
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserOut(ORMModel):
+    id: int
+    username: str
+    full_name: Optional[str] = None
+    student_id: Optional[str] = None
+    class_name: Optional[str] = None
+    faculty: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    avatar: Optional[str] = None
+    links: Optional[dict] = None  # không trả về password
