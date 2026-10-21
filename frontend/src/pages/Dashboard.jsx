@@ -171,9 +171,11 @@ export default function Dashboard() {
                   <Icon size={18} />
                   {s.sensor.name}
                 </span>
+                {/* Thẻ hiển thị trạng thái Normal / Abnormal (Bỏ comment khi cần sử dụng lại)
                 <span className={`badge ${normal ? "good" : "bad"}`}>
                   {s.is_normal === null ? "--" : normal ? "Normal" : "Abnormal"}
                 </span>
+                */}
               </div>
               <div className="sensor-value">
                 {s.value === null ? "--" : `${s.value} ${s.sensor.unit ?? ""}`}
