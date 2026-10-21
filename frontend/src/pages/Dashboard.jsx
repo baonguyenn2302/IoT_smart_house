@@ -43,7 +43,7 @@ function toSeries(items) {
 
 // Mốc 200-1000; nếu có giá trị lux vượt 1000 thì thêm chính giá trị đó làm mốc trên cùng. Không có mốc 0.
 function buildLuxAxis(maxValue) {
-  const base = [200, 400, 600, 800, 1000];
+  const base = [0, 200, 400, 600, 800, 1000];
   const ticks = maxValue > 1000 ? [...base, maxValue] : base;
   return { top: Math.max(1000, maxValue), ticks };
 }
@@ -210,9 +210,9 @@ export default function Dashboard() {
               <XAxis
                 dataKey="time"
                 interval={0}
+                padding={{ left: 12, right: 12 }}
+                tickMargin={8}
                 angle={-30}
-                height={50}
-                tickMargin={10}
                 tick={{ fontSize: 10, fill: "#6b7280" }}
                 tickLine={false}
                 axisLine={AXIS_LINE}
@@ -262,10 +262,10 @@ export default function Dashboard() {
               <XAxis
                 dataKey="time"
                 interval={0}
+                padding={{ left: 12, right: 12 }}
+                tickMargin={8}
                 angle={-30}
-                height={50}
-                tickMargin={10}
-                tick={AXIS_TICK}
+                tick={{ fontSize: 10, fill: "#6b7280" }}
                 tickLine={false}
                 axisLine={AXIS_LINE}
               />

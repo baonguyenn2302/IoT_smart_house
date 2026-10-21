@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, and_, cast, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -48,11 +48,18 @@ def list_actions(
         pattern = f"%{keyword}%"
         time_vn = func.date_format(ActionHistory.recorded_at, "%d/%m/%Y %H:%i:%s")
         time_iso = func.date_format(ActionHistory.recorded_at, "%Y-%m-%d %H:%i:%s")
+
+        # Chuỗi "Hệ thống" tương ứng với các bản ghi không có người thao tác
+        actor_match = or_(
+            User.full_name.like(pattern),
+            User.username.like(pattern),
+            and_(ActionHistory.user_id.is_(None), literal("Hệ thống").like(pattern)),
+        )
+
         query = query.where(
             or_(
                 Device.name.like(pattern),
-                User.full_name.like(pattern),
-                User.username.like(pattern),
+                actor_match,
                 cast(ActionHistory.action, String).like(pattern),
                 cast(ActionHistory.status, String).like(pattern),
                 time_vn.like(pattern),
