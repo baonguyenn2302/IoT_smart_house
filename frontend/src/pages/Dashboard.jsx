@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import { Droplet, Lightbulb, Sun, Thermometer } from "lucide-react";
 import { api } from "../api/client";
@@ -8,15 +13,23 @@ import { api } from "../api/client";
 const SENSOR_POLL_MS = 3000;
 const DEVICE_POLL_MS = 1000;
 const PENDING_MS = 5000; // khớp với ACK_TIMEOUT_SECONDS ở backend
+const POINTS = 10; // số thời điểm hiển thị trên mỗi biểu đồ
 
-const KEY_BY_SENSOR = { Temperature: "temperature", Humidity: "humidity", Light: "light" };
-const ICON_BY_SENSOR = { Temperature: Thermometer, Humidity: Droplet, Light: Sun };
+const KEY_BY_SENSOR = {
+  Temperature: "temperature",
+  Humidity: "humidity",
+  Light: "light",
+};
+const ICON_BY_SENSOR = {
+  Temperature: Thermometer,
+  Humidity: Droplet,
+  Light: Sun,
+};
 
 const AXIS_TICK = { fontSize: 11, fill: "#6b7280" };
 const AXIS_LINE = { stroke: "#d1d5db" };
 
-const POINTS = 10; // số điểm hiển thị trên mỗi biểu đồ
-
+// Gom 3 bản ghi cùng một lần đo thành một điểm trên biểu đồ
 function toSeries(items) {
   const map = new Map();
   for (const it of items) {
@@ -24,12 +37,13 @@ function toSeries(items) {
     if (!map.has(t)) map.set(t, { time: t.slice(11, 19) });
     map.get(t)[KEY_BY_SENSOR[it.sensor.name]] = it.value;
   }
+  // Map giữ thứ tự mới nhất trước: lấy POINTS thời điểm đầu, rồi đảo lại cho biểu đồ chạy từ cũ đến mới
   return [...map.values()].slice(0, POINTS).reverse();
 }
 
-// Mốc cố định 0-1000; nếu có giá trị lux vượt 1000 thì thêm chính giá trị đó làm mốc trên cùng
+// Mốc 200-1000; nếu có giá trị lux vượt 1000 thì thêm chính giá trị đó làm mốc trên cùng. Không có mốc 0.
 function buildLuxAxis(maxValue) {
-  const base = [0, 200, 400, 600, 800, 1000];
+  const base = [200, 400, 600, 800, 1000];
   const ticks = maxValue > 1000 ? [...base, maxValue] : base;
   return { top: Math.max(1000, maxValue), ticks };
 }
@@ -59,9 +73,10 @@ export default function Dashboard() {
 
   const loadSensors = useCallback(async () => {
     try {
+      // 60 bản ghi = 20 lần đo (3 cảm biến mỗi lần), đủ để luôn có POINTS thời điểm
       const [l, s] = await Promise.all([
         api.get("/sensors/latest"),
-        api.get("/sensors/data", { params: { size: 30 } }),
+        api.get("/sensors/data", { params: { size: 60 } }),
       ]);
       setLatest(l.data);
       setSeries(toSeries(s.data.items));
@@ -86,7 +101,7 @@ export default function Dashboard() {
           }
           // Server chưa cập nhật kịp: giữ trạng thái vừa bấm
           return { ...d, status: p.status };
-        })
+        }),
       );
     } catch {
       setError("Mất kết nối");
@@ -108,8 +123,13 @@ export default function Dashboard() {
     const action = device.status === "ON" ? "OFF" : "ON";
 
     // Đổi công tắc ngay, không chờ ESP32
-    pendingRef.current[device.id] = { status: action, until: Date.now() + PENDING_MS };
-    setDevices((prev) => prev.map((d) => (d.id === device.id ? { ...d, status: action } : d)));
+    pendingRef.current[device.id] = {
+      status: action,
+      until: Date.now() + PENDING_MS,
+    };
+    setDevices((prev) =>
+      prev.map((d) => (d.id === device.id ? { ...d, status: action } : d)),
+    );
 
     setBusyId(device.id);
     try {
@@ -167,21 +187,61 @@ export default function Dashboard() {
         <div className="card">
           <div className="chart-head">
             <h3>Temperature &amp; Humidity</h3>
-            <Legend items={[["#f97316", "Temperature (°C)"], ["#2563eb", "Humidity (%)"]]} />
+            <Legend
+              items={[
+                ["#f97316", "Temperature (°C)"],
+                ["#2563eb", "Humidity (%)"],
+              ]}
+            />
           </div>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <XAxis dataKey="time" tick={AXIS_TICK} tickLine={false} axisLine={AXIS_LINE} />
+            <LineChart
+              data={series}
+              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+            >
+              {/* <XAxis
+                dataKey="time"
+                tick={AXIS_TICK}
+                tickLine={false}
+                axisLine={AXIS_LINE}
+              /> */}
+              <XAxis
+                dataKey="time"
+                interval={0}
+                angle={-30}
+                height={80}
+                tick={{ fontSize: 10, fill: "#6b7280" }}
+                tickLine={false}
+                axisLine={AXIS_LINE}
+              />
               <YAxis
                 domain={[0, 100]}
-                ticks={[0, 20, 40, 60, 80, 100]}
+                ticks={[20, 40, 60, 80, 100]}
                 tick={AXIS_TICK}
                 tickLine={false}
                 axisLine={AXIS_LINE}
               />
-              <Tooltip />
-              <Line type="monotone" dataKey="temperature" stroke="#f97316" strokeWidth={2} dot={{ r: 3, fill: "#f97316" }} isAnimationActive={false} />
-              <Line type="monotone" dataKey="humidity" stroke="#2563eb" strokeWidth={2} dot={{ r: 3, fill: "#2563eb" }} isAnimationActive={false} />
+              <Tooltip
+                formatter={(value, name) => [Number(value).toFixed(1), name]}
+              />
+              <Line
+                type="monotone"
+                dataKey="temperature"
+                name="Temperature (°C)"
+                stroke="#f97316"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "#f97316" }}
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="humidity"
+                name="Humidity (%)"
+                stroke="#2563eb"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "#2563eb" }}
+                isAnimationActive={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -192,8 +252,19 @@ export default function Dashboard() {
             <Legend items={[["#22c55e", "Light (lux)"]]} />
           </div>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <XAxis dataKey="time" tick={AXIS_TICK} tickLine={false} axisLine={AXIS_LINE} />
+            <LineChart
+              data={series}
+              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+            >
+              <XAxis
+                dataKey="time"
+                interval={0}
+                angle={-30}
+                height={80}
+                tick={AXIS_TICK}
+                tickLine={false}
+                axisLine={AXIS_LINE}
+              />
               <YAxis
                 domain={[0, lux.top]}
                 ticks={lux.ticks}
@@ -201,8 +272,18 @@ export default function Dashboard() {
                 tickLine={false}
                 axisLine={AXIS_LINE}
               />
-              <Tooltip />
-              <Line type="monotone" dataKey="light" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} isAnimationActive={false} />
+              <Tooltip
+                formatter={(value, name) => [Number(value).toFixed(1), name]}
+              />
+              <Line
+                type="monotone"
+                dataKey="light"
+                name="Light (lux)"
+                stroke="#22c55e"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "#22c55e" }}
+                isAnimationActive={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -220,7 +301,9 @@ export default function Dashboard() {
                 </div>
                 <div className="led-info">
                   <strong>{d.name}</strong>
-                  <span className={on ? "on-text" : "off-text"}>{d.status}</span>
+                  <span className={on ? "on-text" : "off-text"}>
+                    {d.status}
+                  </span>
                 </div>
                 <button
                   role="switch"

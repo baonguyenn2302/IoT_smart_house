@@ -2,6 +2,8 @@ import axios from "axios";
 
 export const api = axios.create({ baseURL: "/api" });
 
+// MOCK DATA
+
 // ===== Danh mục =====
 const SENSOR_LIST = [
   { id: 1, name: "Temperature", unit: "°C", min_normal: 18, max_normal: 35 },
@@ -202,3 +204,4 @@ function mockAdapter(config) {
 }
 
 api.defaults.adapter = mockAdapter;
+

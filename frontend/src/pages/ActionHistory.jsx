@@ -8,12 +8,16 @@ const SORT_OPTIONS = [
   { value: "TIME_ASC", label: "Oldest first" },
 ];
 
-const STATUS_LABEL = { SUCCESS: "Success", PENDING: "Pending", FAILED: "Failed" };
+const STATUS_LABEL = {
+  SUCCESS: "Success",
+  PENDING: "Pending",
+  FAILED: "Failed",
+};
 
 export default function ActionHistory() {
   const [devices, setDevices] = useState([]);
   const [keyword, setKeyword] = useState("");
-  const [sort, setSort] = useState("");  // "" nghĩa là dùng mặc định của API (mới nhất trước)
+  const [sort, setSort] = useState(""); // "" nghĩa là dùng mặc định của API (mới nhất trước)
   const [deviceId, setDeviceId] = useState("");
   const [status, setStatus] = useState("");
   const [action, setAction] = useState("");
@@ -50,7 +54,7 @@ export default function ActionHistory() {
     ? data.items.filter((it) =>
         `${it.device.name} ${it.user?.full_name ?? "Hệ thống"}`
           .toLowerCase()
-          .includes(keyword.toLowerCase())
+          .includes(keyword.toLowerCase()),
       )
     : data.items;
 
@@ -89,9 +93,13 @@ export default function ActionHistory() {
 
         <label className="control">
           <select value={sort} onChange={handleSortChange}>
-            <option value="" disabled>Sorted by Date/Time</option>
+            <option value="" disabled>
+              Sorted by Date/Time
+            </option>
             {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
           <ChevronDown size={14} />
@@ -101,7 +109,9 @@ export default function ActionHistory() {
           <select value={deviceId} onChange={withReset(setDeviceId)}>
             <option value="">Device</option>
             {devices.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
             ))}
           </select>
           <ChevronDown size={14} />
@@ -135,8 +145,12 @@ export default function ActionHistory() {
         <table>
           <thead>
             <tr>
-              <th>ID</th><th>Device</th><th>Action</th>
-              <th>Actor</th><th>Action Status</th><th>Time</th>
+              <th>ID</th>
+              <th>Device</th>
+              <th>Action</th>
+              <th>Actor</th>
+              <th>Action Status</th>
+              <th>Time</th>
             </tr>
           </thead>
           <tbody>
@@ -145,11 +159,15 @@ export default function ActionHistory() {
                 <td className="id">#{String(it.id).padStart(3, "0")}</td>
                 <td>{it.device.name}</td>
                 <td>
-                  <span className={`tag ${it.action === "ON" ? "on" : ""}`}>{it.action}</span>
+                  <span className={`tag ${it.action === "ON" ? "on" : ""}`}>
+                    {it.action}
+                  </span>
                 </td>
                 <td>{it.user?.full_name ?? "Hệ thống"}</td>
                 <td>
-                  <span className={`tag ${it.status.toLowerCase()}`}>{STATUS_LABEL[it.status]}</span>
+                  <span className={`tag ${it.status.toLowerCase()}`}>
+                    {STATUS_LABEL[it.status]}
+                  </span>
                 </td>
                 <td>{it.recorded_at.replace("T", " ")}</td>
               </tr>

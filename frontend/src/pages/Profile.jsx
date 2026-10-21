@@ -11,7 +11,7 @@ const PROFILE = {
 };
 
 const RESOURCES = [
-    {
+  {
     title: "GitHub Repository",
     desc: "Source code of the Web IoT project",
     label: "Open GitHub",
@@ -90,7 +90,9 @@ export default function Profile() {
         {RESOURCES.map(({ title, desc, label, icon: Icon, href, download }) => (
           <div className="card resource" key={title}>
             <div className="resource-head">
-              <div className="resource-icon"><Icon size={18} /></div>
+              <div className="resource-icon">
+                <Icon size={18} />
+              </div>
               <strong>{title}</strong>
             </div>
             <p>{desc}</p>

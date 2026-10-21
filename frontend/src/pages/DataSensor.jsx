@@ -20,6 +20,9 @@ const SORT_OPTIONS = [
 
 const DEBOUNCE_MS = 300;
 
+const placeholderFor = (field) =>
+  `Search ${SEARCH_FIELDS.find((f) => f.value === field)?.label ?? "All"}...`;
+
 export default function DataSensor() {
   const [field, setField] = useState("ALL");
   const [keyword, setKeyword] = useState("");
@@ -79,7 +82,9 @@ export default function DataSensor() {
             }}
           >
             {SEARCH_FIELDS.map((f) => (
-              <option key={f.value} value={f.value}>Search: {f.label}</option>
+              <option key={f.value} value={f.value}>
+                Search: {f.label}
+              </option>
             ))}
           </select>
           <ChevronDown size={14} />
@@ -88,7 +93,7 @@ export default function DataSensor() {
         <label className="control search">
           <Search size={16} />
           <input
-            placeholder="Search sensor data..."
+            placeholder={placeholderFor(field)}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -103,7 +108,9 @@ export default function DataSensor() {
             }}
           >
             {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
           <ChevronDown size={14} />
@@ -118,7 +125,10 @@ export default function DataSensor() {
         <table>
           <thead>
             <tr>
-              <th>ID</th><th>Name</th><th>Value</th><th>Time</th>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Value</th>
+              <th>Time</th>
             </tr>
           </thead>
           <tbody>
@@ -126,7 +136,10 @@ export default function DataSensor() {
               <tr key={it.id}>
                 <td className="id">#{String(it.id).padStart(3, "0")}</td>
                 <td>{it.sensor.name}</td>
-                <td>{it.value}{it.sensor.unit}</td>
+                <td>
+                  {it.value}
+                  {it.sensor.unit}
+                </td>
                 <td>{it.recorded_at.replace("T", " ")}</td>
               </tr>
             ))}
