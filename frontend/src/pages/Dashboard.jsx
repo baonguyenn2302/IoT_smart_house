@@ -13,6 +13,7 @@ import { api } from "../api/client";
 const SENSOR_POLL_MS = 3000;
 const DEVICE_POLL_MS = 1000;
 const PENDING_MS = 5000; // khớp với ACK_TIMEOUT_SECONDS ở backend
+const UI_UPDATE_DELAY_MS = 3000;
 const POINTS = 10; // số thời điểm hiển thị trên mỗi biểu đồ
 
 const KEY_BY_SENSOR = {
@@ -68,7 +69,8 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
 
-  // Trạng thái đang chờ ESP32 xác nhận: { [deviceId]: { status, until } }
+  // Chờ ESP32 xác nhận, sau đó chờ thêm 3 giây mới cập nhật giao diện.
+  // { [deviceId]: { status, previousStatus, until, acknowledgedAt } }
   const pendingRef = useRef({});
 
   const loadSensors = useCallback(async () => {
@@ -94,13 +96,26 @@ export default function Dashboard() {
         data.map((d) => {
           const p = pendingRef.current[d.id];
           if (!p) return d;
-          // ESP32 đã xác nhận, hoặc đã hết thời gian chờ: dùng dữ liệu từ server
-          if (d.status === p.status || now > p.until) {
+
+          // Bắt đầu đếm 3 giây từ lần đầu backend ghi nhận trạng thái do ESP32 gửi.
+          if (d.status === p.status) {
+            p.acknowledgedAt ??= now;
+            if (now - p.acknowledgedAt >= UI_UPDATE_DELAY_MS) {
+              delete pendingRef.current[d.id];
+              return d;
+            }
+
+            return { ...d, status: p.previousStatus };
+          }
+
+          // Hết thời gian chờ mà chưa nhận được trạng thái mong muốn: dùng dữ liệu server.
+          if (now > p.until) {
             delete pendingRef.current[d.id];
             return d;
           }
-          // Server chưa cập nhật kịp: giữ trạng thái vừa bấm
-          return { ...d, status: p.status };
+
+          // Chưa có xác nhận từ ESP32: giữ trạng thái trước khi gửi lệnh.
+          return { ...d, status: p.previousStatus };
         }),
       );
     } catch {
@@ -122,14 +137,12 @@ export default function Dashboard() {
   async function toggle(device) {
     const action = device.status === "ON" ? "OFF" : "ON";
 
-    // Đổi công tắc ngay, không chờ ESP32
+    // Giữ trạng thái hiện tại cho đến khi ESP32 xác nhận và hết thời gian trễ 3 giây.
     pendingRef.current[device.id] = {
       status: action,
+      previousStatus: device.status,
       until: Date.now() + PENDING_MS,
     };
-    setDevices((prev) =>
-      prev.map((d) => (d.id === device.id ? { ...d, status: action } : d)),
-    );
 
     setBusyId(device.id);
     try {
@@ -314,7 +327,7 @@ export default function Dashboard() {
                   aria-checked={on}
                   aria-label={`Bật tắt ${d.name}`}
                   className={`switch ${on ? "on" : ""}`}
-                  disabled={busyId === d.id}
+                  disabled={busyId === d.id || Boolean(pendingRef.current[d.id])}
                   onClick={() => toggle(d)}
                 >
                   <span />
