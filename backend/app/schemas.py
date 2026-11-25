@@ -28,6 +28,11 @@ class DeviceOut(ORMModel):
     status: DeviceStatus
 
 
+class DashboardDeviceOut(DeviceOut):
+    pending: bool
+    update_in_ms: int
+
+
 class DeviceControlIn(BaseModel):
     action: ActionType = Field(description="Bật (ON) hoặc tắt (OFF)", examples=["ON"])
 
@@ -71,7 +76,6 @@ class ActionOut(ORMModel):
     device: DeviceOut
     user: Optional[ActorOut] = None  # None = hệ thống/tự động
 
-
 # ===== Payload MQTT từ ESP32 =====
 class SensorPayload(BaseModel):
     """Topic sensors/data: {"temperature": 28.5, "humidity": 65, "lux": 450}"""
@@ -81,9 +85,10 @@ class SensorPayload(BaseModel):
 
 
 class DeviceStatusPayload(BaseModel):
-    """Topic /devices/status: {"led1": "on", "led2": "off"}"""
+    """Topic /devices/status: {"led1": "on", "action_id": 42}"""
     led1: Optional[DeviceStatus] = None
     led2: Optional[DeviceStatus] = None
+    action_id: Optional[int] = Field(default=None, gt=0, strict=True)
 
     @field_validator("led1", "led2", mode="before")
     @classmethod

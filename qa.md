@@ -49,26 +49,12 @@
   LED3_PIN = 27
   led3 = Pin(LED3_PIN, Pin.OUT)
 
-  # Trong hàm gui_trang_thai_led():
-  def gui_trang_thai_led():
-      trang_thai = '{{"led1": "{}", "led2": "{}", "led3": "{}"}}'.format(
-          "on" if led1.value() == 1 else "off",
-          "on" if led2.value() == 1 else "off",
-          "on" if led3.value() == 1 else "off",
-      )
-      client.publish(TOPIC_RESPONSE, trang_thai)
-
-  # Trong hàm xu_ly_lenh():
-  elif lenh == "led3:on":
-      led3.value(1)
-  elif lenh == "led3:off":
-      led3.value(0)
+  LEDS = {"led1": led1, "led2": led2, "led3": led3}
   ```
 - **Bước 3: Cập nhật `backend/app/schemas.py`**
   ```python
   class DeviceStatusPayload(BaseModel):
-      led1: Optional[DeviceStatus] = None
-      led2: Optional[DeviceStatus] = None
+      # Giữ các trường led1, led2 và action_id hiện có.
       led3: Optional[DeviceStatus] = None  # <-- Thêm dòng này
 
       @field_validator("led1", "led2", "led3", mode="before")  # <-- Thêm "led3" vào validator
@@ -86,7 +72,7 @@
       "LED 3": "led3",  # <-- Thêm dòng này
   }
   ```
-- **Kết quả:** Vì Frontend tự động gọi API `GET /api/devices` lấy danh sách động, nên ngay khi chèn vào DB và khai báo ở Backend, nút switch của **LED 3** sẽ tự động xuất hiện trên giao diện Web Dashboard!
+- Dashboard lấy danh sách từ `GET /api/devices/dashboard` và hiện thêm công tắc LED 3.
 
 ---
 
@@ -247,10 +233,8 @@ def doc_va_gui_cam_bien():
    ```python
    ACK_TIMEOUT_SECONDS = 3  # Đổi từ 5 thành 3 (hoặc 10)
    ```
-2. `frontend/src/pages/Dashboard.jsx`:
-   ```javascript
-   const PENDING_MS = 3000; // Đổi tương ứng với backend (3s = 3000ms)
-   ```
+
+Dashboard nhận cờ `pending` từ backend. Độ trễ hiển thị 1 giây được đặt bằng `DEVICE_DISPLAY_DELAY` trong `backend/app/models.py`.
 
 ---
 

@@ -126,34 +126,8 @@ h3 {
   padding: 18px 20px;
 }
 
-.card + .card,
-.section + .section {
+.card + .card {
   margin-top: 16px;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.pill.bad {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.pill.dot::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
 }
 
 .tag {
@@ -166,11 +140,7 @@ h3 {
   color: #6b7280;
 }
 
-.tag.on {
-  background: #dcfce7;
-  color: #15803d;
-}
-
+.tag.on,
 .tag.success {
   background: #dcfce7;
   color: #15803d;
@@ -184,165 +154,6 @@ h3 {
 .tag.failed {
   background: #fee2e2;
   color: #dc2626;
-}
-
-.badge {
-  font-size: 12px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-
-.badge.good {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.badge.bad {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-/* ===== Dashboard ===== */
-.sensor-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.sensor-card {
-  padding: 18px 20px;
-}
-
-.sensor-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #4b5563;
-  font-size: 15px;
-}
-
-.sensor-card-head .label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.sensor-value {
-  font-size: 30px;
-  font-weight: 700;
-  margin-top: 14px;
-}
-
-.charts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.chart-card h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.led-section h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 14px;
-}
-
-.led-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.led-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 14px 18px;
-}
-
-.led-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #f3f4f6;
-  color: #9ca3af;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.led-icon.on {
-  background: #dcfce7;
-  color: #16a34a;
-}
-
-.led-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.led-info strong {
-  font-size: 15px;
-}
-
-.led-info span {
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.led-info .on-text {
-  color: #16a34a;
-}
-
-.led-info .off-text {
-  color: #9ca3af;
-}
-
-.switch {
-  width: 52px;
-  height: 28px;
-  border-radius: 999px;
-  border: none;
-  background: #d1d5db;
-  position: relative;
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.2s;
-}
-
-.switch span {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
-}
-
-.switch.on {
-  background: #22c55e;
-}
-
-.switch.on span {
-  transform: translateX(24px);
-}
-
-.switch:disabled {
-  opacity: 0.5;
-  cursor: wait;
 }
 
 /* ===== Filters & table ===== */
@@ -383,6 +194,8 @@ h3 {
 }
 
 .control select {
+  appearance: none;
+  -webkit-appearance: none;
   border: none;
   outline: none;
   background: transparent;
@@ -652,12 +465,17 @@ td.id {
 
 .sensor-cards {
   display: grid;
+  align-items: stretch;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
 .sensor-card {
+  min-height: 112px;
   padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .sensor-head {
@@ -677,25 +495,8 @@ td.id {
 .sensor-value {
   font-size: 30px;
   font-weight: 700;
-  margin-top: 18px;
+  margin-top: 0;
   color: #111827;
-}
-
-.badge {
-  font-size: 12px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-
-.badge.good {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.badge.bad {
-  background: #fee2e2;
-  color: #b91c1c;
 }
 
 .charts {
@@ -793,18 +594,18 @@ td.id {
   color: #111827;
 }
 
-.led-info .on-text {
-  color: #16a34a;
+.led-info span {
   font-size: 12px;
   font-weight: 600;
   margin-top: 2px;
 }
 
+.led-info .on-text {
+  color: #16a34a;
+}
+
 .led-info .off-text {
   color: #9ca3af;
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 2px;
 }
 
 .switch {
@@ -844,45 +645,11 @@ td.id {
   cursor: wait;
 }
 
-/* ===== Max lux ===== */
-.chart-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.max-tag {
-  font-size: 12px;
-  font-weight: 600;
-  color: #15803d;
-  background: #dcfce7;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-
-/* ===== Dropdown: ẩn mũi tên mặc định của trình duyệt ===== */
-.control select {
-  appearance: none;
-  -webkit-appearance: none;
-}
-
 /* ===== Đồng bộ kích thước thẻ cảm biến và biểu đồ ===== */
-.sensor-cards {
-  align-items: stretch;
-}
 .sensor-cards > .card,
 .charts > .card {
   margin: 0;
   height: 100%;
-}
-.sensor-card {
-  min-height: 112px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-.sensor-value {
-  margin-top: 0;
 }
 
 /* ===== Đăng nhập & đăng xuất ===== */

@@ -1,12 +1,12 @@
+import enum
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, joinedload
-import enum
-from sqlalchemy import String, cast, func, or_
 
+from app.config import as_vietnam_time
 from app.database import get_db
 from app.models import DataSensor, Sensor
 from app.schemas import Page, SensorDataOut, SensorLatestOut, SensorOut
@@ -102,9 +102,9 @@ def list_sensor_data(
     if sensor_id is not None:
         query = query.where(DataSensor.sensor_id == sensor_id)
     if from_time is not None:
-        query = query.where(DataSensor.recorded_at >= from_time)
+        query = query.where(DataSensor.recorded_at >= as_vietnam_time(from_time))
     if to_time is not None:
-        query = query.where(DataSensor.recorded_at <= to_time)
+        query = query.where(DataSensor.recorded_at <= as_vietnam_time(to_time))
 
     if q and q.strip():
         # Cho phép gõ cả "T" thay cho khoảng trắng, ví dụ 2026-10-21T12:31:24
@@ -140,4 +140,4 @@ def list_sensor_data(
         .limit(size)
     ).unique().all()
 
-    return Page(items=items, total=total, page=page, size=size)
+    return Page[SensorDataOut](items=items, total=total, page=page, size=size)

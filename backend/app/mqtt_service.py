@@ -1,13 +1,14 @@
 import json
 import logging
 import threading
+from datetime import datetime, timezone
 from typing import Optional
-from datetime import datetime
+
 import paho.mqtt.client as mqtt
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.config import settings, vietnam_now
 from app.database import SessionLocal
 from app.models import (
     ActionHistory,
@@ -75,7 +76,7 @@ def _on_message(client, userdata, msg):
 # ===== Xử lý message đến =====
 def _handle_sensor_data(raw: dict) -> None:
     data = SensorPayload.model_validate(raw)
-    now = datetime.now()  # cùng một thời điểm cho cả gói dữ liệu
+    now = vietnam_now()
 
     with SessionLocal() as db:
         for key, value in data.model_dump().items():
@@ -92,31 +93,38 @@ def _handle_sensor_data(raw: dict) -> None:
 
 def _handle_device_status(raw: dict) -> None:
     data = DeviceStatusPayload.model_validate(raw)
-    reported = data.model_dump(exclude_none=True)
+    acknowledged_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     with SessionLocal() as db:
         for device_name, key in DEVICE_NAME_TO_KEY.items():
-            if key not in reported:
+            new_status = getattr(data, key)
+            if new_status is None:
                 continue
 
-            new_status = reported[key]
-            device = db.scalar(select(Device).where(Device.name == device_name))
+            device = db.scalar(
+                select(Device).where(Device.name == device_name).with_for_update()
+            )
             if device is None:
                 continue
 
-            device.status = new_status
-
-            # Nếu có lệnh đang chờ khớp với trạng thái vừa nhận, đánh dấu thành công
-            pending = db.scalar(
-                select(ActionHistory)
-                .where(
-                    ActionHistory.device_id == device.id,
-                    ActionHistory.status == ActionStatus.PENDING,
+            if device.status != new_status:
+                # Nếu đèn đảo chiều trong lúc chờ, nó trở về trạng thái Dashboard đang hiển thị.
+                device.switch_at = (
+                    None if device.display_update_in_ms(acknowledged_at) else acknowledged_at
                 )
-                .order_by(ActionHistory.id.desc())
-            )
-            if pending is not None and pending.action.value == new_status.value:
-                pending.status = ActionStatus.SUCCESS
+                device.status = new_status
+
+            if data.action_id is not None:
+                db.execute(
+                    update(ActionHistory)
+                    .where(
+                        ActionHistory.id == data.action_id,
+                        ActionHistory.device_id == device.id,
+                        ActionHistory.action == ActionType(new_status.value),
+                        ActionHistory.status == ActionStatus.PENDING,
+                    )
+                    .values(status=ActionStatus.SUCCESS)
+                )
 
         db.commit()
 
@@ -125,10 +133,13 @@ def _handle_device_status(raw: dict) -> None:
 def _mark_failed_if_pending(action_id: int) -> None:
     """Chạy sau ACK_TIMEOUT_SECONDS giây. Nếu lệnh vẫn PENDING thì coi là thất bại."""
     with SessionLocal() as db:
-        record = db.get(ActionHistory, action_id)
-        if record is not None and record.status == ActionStatus.PENDING:
-            record.status = ActionStatus.FAILED
-            db.commit()
+        result = db.execute(
+            update(ActionHistory)
+            .where(ActionHistory.id == action_id, ActionHistory.status == ActionStatus.PENDING)
+            .values(status=ActionStatus.FAILED)
+        )
+        db.commit()
+        if result.rowcount:
             logger.warning("Lệnh #%s không có phản hồi, đánh dấu FAILED", action_id)
 
 
@@ -139,7 +150,8 @@ def send_device_command(
     user_id: Optional[int],
 ) -> ActionHistory:
     """Tạo bản ghi PENDING, publish lệnh lên MQTT và hẹn giờ kiểm tra timeout."""
-    if _client is None or not _client.is_connected():
+    client = _client
+    if client is None or not client.is_connected():
         raise MqttNotConnectedError("Chưa kết nối được tới MQTT broker")
 
     key = DEVICE_NAME_TO_KEY.get(device.name)
@@ -156,8 +168,8 @@ def send_device_command(
     db.commit()  # commit trước khi publish để phản hồi từ ESP32 luôn tìm thấy bản ghi
     db.refresh(record)
 
-    command = f"{key}:{action.value.lower()}"  # ví dụ "led1:on"
-    result = _client.publish(TOPIC_CONTROL, command, qos=0)
+    command = f"{key}:{action.value.lower()}:{record.id}"  # ví dụ "led1:on:42"
+    result = client.publish(TOPIC_CONTROL, command, qos=0)
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
         record.status = ActionStatus.FAILED
         db.commit()

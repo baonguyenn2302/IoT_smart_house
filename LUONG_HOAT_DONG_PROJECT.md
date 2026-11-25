@@ -75,7 +75,7 @@ Dự án là một hệ sinh thái IoT hoàn chỉnh gồm **4 tầng kiến tr�
 | `qa.md` | Bộ câu hỏi thực hành livecode và vấn đáp cơ chế bảo vệ đồ án. |
 | **DATABASE (`database/`)** | |
 | `database/init.sql` | Tạo CSDL `smart_house`, tạo tài khoản MySQL và phân quyền người dùng. |
-| `database/schema.sql` | DDL tạo 5 bảng (`users`, `devices`, `sensors`, `data_sensor`, `action_history`) kèm khóa ngoại và các chỉ mục `INDEX` tối ưu tìm kiếm theo thời gian. |
+| `database/schema.sql` | Xóa và tạo lại các bảng ứng dụng cùng khóa ngoại và chỉ mục. |
 | `database/seed.sql` | Nạp sẵn danh mục 2 LED và 3 cảm biến (Temperature, Humidity, Light) kèm ngưỡng an toàn (`min_normal`, `max_normal`). |
 | **ESP32 FIRMWARE (`esp32/`)** | |
 | `esp32/secrets.py` | Chứa cấu hình kết nối WiFi (SSID, Password) và MQTT Broker (IP, Port, User, Pass). |
@@ -105,7 +105,7 @@ Dự án là một hệ sinh thái IoT hoàn chỉnh gồm **4 tầng kiến tr�
 | `frontend/src/components/Pagination.jsx` | Thanh phân trang tái sử dụng (chọn trang, chọn page size: 10, 20, 50, 100). |
 | `frontend/src/api/client.js` | Cấu hình Axios instance `/api`, cài đặt **Request Interceptor** (tự động đính kèm `Bearer <token>`) và **Response Interceptor** (bắt mã 401 để xóa token và chuyển về trang Login). |
 | `frontend/src/pages/Login.jsx` | Trang đăng nhập: form nhập username, password, gọi API `/api/auth/login`, lưu token và chuyển hướng vào Dashboard. |
-| `frontend/src/pages/Dashboard.jsx` | **Trang chủ:** Polling cảm biến (mỗi 3s), polling thiết bị (mỗi 1s); hiển thị 3 Card chỉ số cảm biến; vẽ 2 biểu đồ Recharts (Nhiệt độ - Độ ẩm & Ánh sáng); công tắc điều khiển 2 LED có hiệu ứng khóa chờ phản hồi (`pendingRef`). |
+| `frontend/src/pages/Dashboard.jsx` | Polling cảm biến mỗi 3 giây và thiết bị mỗi 1 giây. Công tắc khóa trong lúc chờ ESP32 xác nhận và hẹn đọc lại trạng thái khi hết độ trễ hiển thị. |
 | `frontend/src/pages/DataSensor.jsx` | Trang bảng lịch sử đo: hỗ trợ tìm kiếm debounce 300ms, chọn trường tìm kiếm (All, Time, Temp, Hum, Light), sắp xếp và phân trang. |
 | `frontend/src/pages/ActionHistory.jsx` | Trang lịch sử thao tác: tìm kiếm từ khóa `q` trực tiếp xuống backend, lọc theo thiết bị, theo trạng thái hành động (SUCCESS, PENDING, FAILED), theo hành động (ON, OFF), sắp xếp và phân trang. |
 | `frontend/src/pages/Profile.jsx` | Trang hồ sơ người dùng: gọi API `/api/auth/me` để lấy thông tin sinh viên từ cơ sở dữ liệu và hiển thị liên kết tài nguyên đồ án (GitHub, Figma, PDF). |
@@ -206,7 +206,7 @@ sequenceDiagram
 
 ### Luồng 3: Điều khiển thiết bị và xác thực 2 chiều (Two-way Device Control Flow)
 
-Hệ thống **không cập nhật trạng thái thiết bị ngay lập tức** khi bấm nút, mà áp dụng cơ chế xác nhận 2 chiều (Pending Confirmation) kèm Timeout để đảm bảo đúng trạng thái thực tế của phần cứng, đồng thời lưu vết chính xác người thực hiện thao tác.
+ESP32 gửi xác nhận kèm mã lệnh sau khi đổi GPIO. Backend lưu trạng thái LED ngay và giữ trạng thái công tắc cũ trên Dashboard thêm 1 giây.
 
 ```mermaid
 sequenceDiagram
@@ -219,41 +219,39 @@ sequenceDiagram
     participant ESP as ESP32 (main.py)
 
     User->>FE: Bấm bật đèn (VD: LED 1)
-    FE->>FE: Khóa nút gạt, lưu trạng thái tạm vào pendingRef (chờ 5s)
+    FE->>FE: Khóa nút gạt của LED 1
     FE->>BE: POST /api/devices/1/control với body: {"action": "ON"} (kèm Bearer Token)
     BE->>BE: Lấy user_id từ token qua get_current_user
     BE->>DB: INSERT action_history (status='PENDING', action='ON', device_id=1, user_id=user.id)
     BE->>BE: Kích hoạt Timer hẹn giờ 5 giây (ACK Timeout)
-    BE->>Broker: Publish chuỗi "led1:on" lên topic "/devices/control"
+    BE->>Broker: Publish chuỗi "led1:on:42" lên topic "/devices/control"
     BE-->>FE: Trả về bản ghi Action vừa tạo (status: PENDING)
 
-    Broker->>ESP: Bắn payload "led1:on" tới ESP32
+    Broker->>ESP: Chuyển payload "led1:on:42" tới ESP32
     ESP->>ESP: Hàm xu_ly_lenh() nhận tin, bật chân GPIO 25 = 1 (HIGH)
     ESP->>Broker: Publish trạng thái thực tế lên topic "/devices/status"
-    Note over ESP,Broker: Payload: {"led1": "on", "led2": "off"}
+    Note over ESP,Broker: Payload {"led1": "on", "action_id": 42}
 
     Broker->>BE: Bắn message vào callback _on_message()
     BE->>BE: Hàm _handle_device_status()
-    BE->>DB: Cập nhật devices.status = 'ON' cho LED 1
-    BE->>DB: Tìm bản ghi PENDING gần nhất của LED 1 -> Cập nhật status = 'SUCCESS'
+    BE->>DB: Lưu devices.status = 'ON' và switch_at cho LED 1
+    BE->>DB: Đánh dấu SUCCESS cho lệnh 42 nếu thiết bị và trạng thái khớp
 
-    loop Frontend Polling trạng thái (mỗi 1 giây)
-        FE->>BE: GET /api/devices (kèm Bearer Token)
-        BE->>DB: SELECT * FROM devices
-        DB-->>BE: LED 1 đã là 'ON'
-        BE-->>FE: Danh sách trạng thái mới
-        FE->>FE: Nhận thấy status == pending status -> Xóa pendingRef, mở khóa nút gạt ở trạng thái ON
-    end
+    FE->>BE: GET /api/devices/dashboard
+    BE-->>FE: Trả trạng thái OFF và update_in_ms
+    FE->>BE: Đọc lại khi đến mốc 1 giây
+    BE-->>FE: Trả trạng thái ON
+    FE->>FE: Đổi và mở khóa nút gạt
 ```
 
 #### Xử lý kịch bản lỗi (ESP32 mất nguồn hoặc mất mạng):
 1. Backend gửi lệnh lên MQTT nhưng ESP32 không nhận được.
 2. Quá 5 giây, `threading.Timer` trong `mqtt_service.py` gọi hàm `_mark_failed_if_pending()`.
 3. Bản ghi trong bảng `action_history` tự động được chuyển thành `FAILED`.
-4. Trên giao diện Frontend, `pendingRef` hết hạn 5 giây, switch tự động trả về trạng thái cũ thực tế của thiết bị trong DB.
+4. Dashboard mở khóa công tắc và giữ trạng thái LED gần nhất được ESP32 báo về.
 
 #### Các file tham gia:
-- `frontend/src/pages/Dashboard.jsx`: Bắt sự kiện người dùng bấm switch `toggleDevice()`, gọi `api.post("/devices/{id}/control", { action })`.
+- `frontend/src/pages/Dashboard.jsx` gọi `POST /api/devices/{id}/control` và đọc mốc cập nhật từ `GET /api/devices/dashboard`.
 - `backend/app/routers/devices.py`: Tiếp nhận request, lấy `user.id` từ token qua `get_current_user`, gọi `send_device_command()`.
 - `backend/app/mqtt_service.py`: Ghi bản ghi `ActionHistory` (kèm `user_id`), publish lệnh qua MQTT và khởi tạo `threading.Timer(ACK_TIMEOUT_SECONDS = 5, _mark_failed_if_pending)`. Khi ESP32 phản hồi lên `/devices/status`, hàm `_handle_device_status()` cập nhật thiết bị và chốt trạng thái `SUCCESS`.
 - `esp32/main.py`: Nhận lệnh qua `xu_ly_lenh()`, kích chân GPIO `led1.value(1)` hoặc `led1.value(0)`, sau đó gọi ngay `gui_trang_thai_led()` gửi JSON lên `/devices/status`.
@@ -332,7 +330,7 @@ flowchart TD
 
 ## 4. Mô hình Dữ liệu (Database Schema & Relationships)
 
-CSDL `smart_house` được thiết kế chuẩn hóa gồm 5 bảng:
+CSDL `smart_house` có 5 bảng nghiệp vụ.
 
 ```
        +-------------------+
@@ -357,6 +355,7 @@ CSDL `smart_house` được thiết kế chuẩn hóa gồm 5 bảng:
        | id (PK)           | N           1 | id (PK)           |
        | action (ON/OFF)   +---------------> name (LED 1, 2)   |
        | status (PEND/SUC) | (device_id)   | status (ON/OFF)   |
+       |                   |               | switch_at (UTC)   |
        | recorded_at       |               +-------------------+
        | user_id (FK)      |
        | device_id (FK)    |
@@ -401,8 +400,8 @@ CSDL `smart_house` được thiết kế chuẩn hóa gồm 5 bảng:
 | Topic | Bên gửi | Bên nhận | Định dạng | Ví dụ Payload | Chức năng |
 | :--- | :---: | :---: | :---: | :--- | :--- |
 | `sensors/data` | ESP32 | Backend | JSON | `{"temperature": 28.5, "humidity": 65.0, "lux": 450.0}` | ESP32 publish số đo cảm biến mỗi ~2.5 giây. |
-| `/devices/control` | Backend | ESP32 | Plain Text | `led1:on`, `led1:off`, `led2:on`, `led2:off`, `all:on`, `all:off` | Backend gửi lệnh điều khiển xuống ESP32. |
-| `/devices/status` | ESP32 | Backend | JSON | `{"led1": "on", "led2": "off"}` | ESP32 phản hồi trạng thái thực tế để Backend chốt `SUCCESS`. |
+| `/devices/control` | Backend | ESP32 | Plain Text | `led1:on:42` | ESP32 nhận trạng thái cần đặt và mã lệnh. |
+| `/devices/status` | ESP32 | Backend | JSON | `{"led1": "on", "action_id": 42}` | ESP32 xác nhận đúng lệnh. Gói đồng bộ khi kết nối gồm `led1` và `led2`. |
 
 ### B. RESTful API Endpoints
 | STT | Phương thức | Endpoint | Yêu cầu Auth | Mô tả chức năng | Request Body / Query Params |
@@ -412,6 +411,7 @@ CSDL `smart_house` được thiết kế chuẩn hóa gồm 5 bảng:
 | 2 | `GET` | `/api/auth/me` | Có (Bearer) | Lấy thông tin hồ sơ của user đang đăng nhập | Không |
 | **II. Phân hệ Thiết bị** | | | | | |
 | 3 | `GET` | `/api/devices` | Có (Bearer) | Lấy danh sách thiết bị và trạng thái hiện tại | Không |
+| | `GET` | `/api/devices/dashboard` | Có (Bearer) | Lấy trạng thái công tắc và thời gian còn lại tính bằng mili giây | Không |
 | 4 | `POST` | `/api/devices/{id}/control` | Có (Bearer) | Gửi lệnh bật/tắt thiết bị (lưu log kèm user_id) | `{"action": "ON"}` hoặc `{"action": "OFF"}` |
 | **III. Phân hệ Cảm biến** | | | | | |
 | 5 | `GET` | `/api/sensors` | Có (Bearer) | Lấy danh mục cảm biến và ngưỡng bình thường | Không |
@@ -433,10 +433,11 @@ Khi bạn muốn kiểm tra hoặc chỉnh sửa một tính năng cụ thể, h
 | Tạo mới hoặc đổi mật khẩu đăng nhập cho user | Chạy lệnh `python backend/create_user.py` |
 | Đổi thời gian sống của token JWT hoặc Secret Key | `backend/app/config.py` (`JWT_SECRET`, `JWT_EXPIRE_MINUTES`) |
 | Sửa logic phân quyền hoặc giải mã token | `backend/app/security.py` và `backend/app/deps.py` |
-| Đổi chân GPIO cảm biến hoặc LED trên ESP32 | `esp32/main.py` (các dòng 22 - 38) |
-| Đổi chu kỳ gửi dữ liệu cảm biến từ mạch | `esp32/main.py` (dòng 181: đổi số vòng chia dư) |
+| Đổi chân GPIO cảm biến hoặc LED trên ESP32 | Các hằng số GPIO trong `esp32/main.py` |
+| Đổi chu kỳ gửi dữ liệu cảm biến từ mạch | Số vòng lặp giữa hai lần lấy mẫu trong hàm `main()` của `esp32/main.py` |
 | Đổi cấu hình kết nối DB hoặc MQTT broker | `backend/.env.example` & `backend/app/config.py` |
 | Chỉnh thời gian timeout chờ lệnh bật/tắt (ACK Timeout) | `backend/app/mqtt_service.py` (`ACK_TIMEOUT_SECONDS = 5`) |
+| Chỉnh độ trễ hiển thị của công tắc | `backend/app/models.py` (`DEVICE_DISPLAY_DELAY`) |
 | Thêm/bớt trường dữ liệu hoặc bảng mới | `database/schema.sql` và `backend/app/models.py` |
 | Thêm bộ lọc hoặc đổi tiêu chí tìm kiếm API | `backend/app/routers/sensors.py` hoặc `backend/app/routers/actions.py` |
 | Đổi giao diện trang Login | `frontend/src/pages/Login.jsx` và `frontend/src/index.css` |

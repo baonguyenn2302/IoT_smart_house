@@ -7,7 +7,10 @@ engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,           # kiểm tra kết nối trước khi dùng, tránh lỗi "MySQL server has gone away"
     pool_recycle=3600,
-    connect_args={"charset": "utf8mb4"},  # để hiển thị đúng tiếng Việt
+    connect_args={
+        "charset": "utf8mb4",
+        "init_command": "SET time_zone = '+07:00'",
+    },
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

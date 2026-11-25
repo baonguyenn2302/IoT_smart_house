@@ -20,7 +20,7 @@ Hệ thống giám sát môi trường và điều khiển thiết bị thông m
 ## 1. Tính năng nổi bật
 
 - 🌡️ **Giám sát môi trường thời gian thực:** Thu thập các thông số nhiệt độ (°C), độ ẩm (%) và cường độ ánh sáng (lux) từ cảm biến DHT11 và BH1750 (GY-302).
-- 💡 **Điều khiển thiết bị hai chiều (Two-way Control):** Bật/tắt các đèn LED (LED 1, LED 2) từ giao diện Web, xác nhận trạng thái thực tế từ ESP32 qua cơ chế `PENDING` ➔ `SUCCESS` / `FAILED`.
+- 💡 **Điều khiển thiết bị hai chiều (Two-way Control):** ESP32 bật/tắt LED và xác nhận qua MQTT. Công tắc trên Dashboard đổi trạng thái sau 1 giây kể từ khi backend nhận xác nhận.
 - 📊 **Trực quan hóa dữ liệu & Biểu đồ:** Thống kê lịch sử đo, hiển thị biểu đồ biến thiên liên tục với Recharts. Cảnh báo vượt ngưỡng bình thường (`min_normal`, `max_normal`).
 - 🔍 **Tìm kiếm & Phân trang đa năng:** Lọc lịch sử đo cảm biến và lịch sử thao tác theo thời gian, theo thiết bị, theo trạng thái, từ khóa đa trường.
 - 🔄 **Chế độ Mock Data linh hoạt:** Frontend hỗ trợ mock adapter để kiểm thử giao diện độc lập; Backend hỗ trợ script seed dữ liệu mẫu vào MySQL.
@@ -70,8 +70,8 @@ Vi điều khiển ESP32 chạy firmware **MicroPython**:
 | Topic | Chiều | Định dạng Payload | Ví dụ |
 | :--- | :--- | :--- | :--- |
 | `sensors/data` | ESP32 ➔ Broker ➔ Backend | JSON | `{"temperature": 28.5, "humidity": 65.0, "lux": 450.0}` |
-| `/devices/control` | Backend ➔ Broker ➔ ESP32 | Text string | `led1:on`, `led1:off`, `led2:on`, `led2:off`, `all:on`, `all:off` |
-| `/devices/status` | ESP32 ➔ Broker ➔ Backend | JSON | `{"led1": "on", "led2": "off"}` |
+| `/devices/control` | Backend ➔ Broker ➔ ESP32 | `thiết_bị:trạng_thái:action_id` | `led1:on:42`. ESP32 cũng nhận các lệnh thủ công như `led1:on` và `all:off`. |
+| `/devices/status` | ESP32 ➔ Broker ➔ Backend | JSON | Xác nhận lệnh `{"led1": "on", "action_id": 42}`. Khi kết nối, ESP32 gửi trạng thái cả hai LED `{"led1": "on", "led2": "off"}`. |
 
 ---
 
@@ -145,6 +145,8 @@ mysql -u baonguyenn2302 -p'Bao@23022005' smart_house < database/schema.sql
 mysql -u baonguyenn2302 -p'Bao@23022005' smart_house < database/seed.sql
 ```
 
+Chạy `database/schema.sql` sẽ xóa và tạo lại các bảng ứng dụng, gồm tài khoản, thiết bị, dữ liệu cảm biến và lịch sử thao tác. Sau khi tạo lại bảng, chạy `database/seed.sql` để nạp danh mục thiết bị và cảm biến.
+
 ### Bước 2: Khởi chạy MQTT Broker
 ```bash
 # Trên macOS:
@@ -201,7 +203,7 @@ python -m app.seed_mock
    cp esp32/secrets.py.example esp32/secrets.py
    ```
 2. Cập nhật `WIFI_SSID`, `WIFI_PASSWORD` và IP máy chủ MQTT (`MQTT_BROKER`).
-3. Nạp 2 file `secrets.py` và `main.py` vào mạch ESP32.
+3. Nạp 2 file `secrets.py` và `main.py` vào mạch ESP32. Firmware hiện tại nhận mã lệnh từ backend và gửi mã đó trong gói xác nhận.
 
 ---
 
@@ -216,6 +218,7 @@ Tài liệu Swagger tương tác trực tiếp có tại: **`http://localhost:80
 | **Sensors** | `GET` | `/api/sensors/latest` | Lấy giá trị mới nhất của từng cảm biến (Dashboard) |
 | **Sensors** | `GET` | `/api/sensors/data` | Lịch sử dữ liệu đo, hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp |
 | **Devices** | `GET` | `/api/devices` | Danh sách thiết bị và trạng thái hiện tại |
+| **Devices** | `GET` | `/api/devices/dashboard` | Trạng thái hiển thị, cờ `pending` và số mili giây còn lại trước khi công tắc đổi trạng thái |
 | **Devices** | `POST` | `/api/devices/{id}/control` | Gửi lệnh bật/tắt thiết bị qua MQTT (`ON`/`OFF`) |
 | **Actions** | `GET` | `/api/actions` | Lịch sử thao tác bật/tắt thiết bị (phân trang, lọc theo trạng thái) |
 

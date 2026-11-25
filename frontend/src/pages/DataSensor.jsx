@@ -142,7 +142,7 @@ export default function DataSensor() {
                   {it.sensor.unit}
                 </td>
                 <td>
-                  <CopyTime value={it.recorded_at.replace("T", " ")} />
+                  <CopyTime timestamp={it.recorded_at} />
                 </td>
               </tr>
             ))}

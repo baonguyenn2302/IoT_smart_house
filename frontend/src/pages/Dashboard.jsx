@@ -12,8 +12,7 @@ import { api } from "../api/client";
 
 const SENSOR_POLL_MS = 3000;
 const DEVICE_POLL_MS = 1000;
-const PENDING_MS = 5000; // khớp với ACK_TIMEOUT_SECONDS ở backend
-const UI_UPDATE_DELAY_MS = 3000;
+const DEVICE_REQUEST_TIMEOUT_MS = 5000;
 const POINTS = 10; // số thời điểm hiển thị trên mỗi biểu đồ
 
 const KEY_BY_SENSOR = {
@@ -29,6 +28,18 @@ const ICON_BY_SENSOR = {
 
 const AXIS_TICK = { fontSize: 11, fill: "#6b7280" };
 const AXIS_LINE = { stroke: "#d1d5db" };
+const CHART_MARGIN = { top: 8, right: 12, left: 0, bottom: 0 };
+const TIME_AXIS = {
+  dataKey: "time",
+  interval: 0,
+  padding: { left: 12, right: 12 },
+  tickMargin: 8,
+  angle: -30,
+  tick: { fontSize: 10, fill: "#6b7280" },
+  tickLine: false,
+  axisLine: AXIS_LINE,
+};
+const formatTooltip = (value, name) => [Number(value).toFixed(1), name];
 
 // Gom 3 bản ghi cùng một lần đo thành một điểm trên biểu đồ
 function toSeries(items) {
@@ -42,7 +53,7 @@ function toSeries(items) {
   return [...map.values()].slice(0, POINTS).reverse();
 }
 
-// Mốc 200-1000; nếu có giá trị lux vượt 1000 thì thêm chính giá trị đó làm mốc trên cùng. Không có mốc 0.
+// Thêm mốc trên cùng khi giá trị lux vượt 1000.
 function buildLuxAxis(maxValue) {
   const base = [0, 200, 400, 600, 800, 1000];
   const ticks = maxValue > 1000 ? [...base, maxValue] : base;
@@ -67,11 +78,8 @@ export default function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [series, setSeries] = useState([]);
   const [error, setError] = useState("");
-  const [busyId, setBusyId] = useState(null);
-
-  // Chờ ESP32 xác nhận, sau đó chờ thêm 3 giây mới cập nhật giao diện.
-  // { [deviceId]: { status, previousStatus, until, acknowledgedAt } }
-  const pendingRef = useRef({});
+  const [submittingIds, setSubmittingIds] = useState(() => new Set());
+  const refreshDevices = useRef(null);
 
   const loadSensors = useCallback(async () => {
     try {
@@ -88,72 +96,78 @@ export default function Dashboard() {
     }
   }, []);
 
-  const loadDevices = useCallback(async () => {
-    try {
-      const { data } = await api.get("/devices");
-      const now = Date.now();
-      setDevices(
-        data.map((d) => {
-          const p = pendingRef.current[d.id];
-          if (!p) return d;
-
-          // Bắt đầu đếm 3 giây từ lần đầu backend ghi nhận trạng thái do ESP32 gửi.
-          if (d.status === p.status) {
-            p.acknowledgedAt ??= now;
-            if (now - p.acknowledgedAt >= UI_UPDATE_DELAY_MS) {
-              delete pendingRef.current[d.id];
-              return d;
-            }
-
-            return { ...d, status: p.previousStatus };
-          }
-
-          // Hết thời gian chờ mà chưa nhận được trạng thái mong muốn: dùng dữ liệu server.
-          if (now > p.until) {
-            delete pendingRef.current[d.id];
-            return d;
-          }
-
-          // Chưa có xác nhận từ ESP32: giữ trạng thái trước khi gửi lệnh.
-          return { ...d, status: p.previousStatus };
-        }),
-      );
-    } catch {
-      setError("Mất kết nối");
-    }
-  }, []);
+  useEffect(() => {
+    const initialLoad = setTimeout(loadSensors, 0);
+    const sensorTimer = setInterval(loadSensors, SENSOR_POLL_MS);
+    return () => {
+      clearTimeout(initialLoad);
+      clearInterval(sensorTimer);
+    };
+  }, [loadSensors]);
 
   useEffect(() => {
-    loadSensors();
-    loadDevices();
-    const sensorTimer = setInterval(loadSensors, SENSOR_POLL_MS);
-    const deviceTimer = setInterval(loadDevices, DEVICE_POLL_MS);
+    const controller = new AbortController();
+    let timer;
+    let request = Promise.resolve();
+
+    async function loadDevices() {
+      let delay = DEVICE_POLL_MS;
+      if (controller.signal.aborted) return delay;
+
+      try {
+        const { data } = await api.get("/devices/dashboard", {
+          signal: controller.signal,
+          timeout: DEVICE_REQUEST_TIMEOUT_MS,
+        });
+        if (controller.signal.aborted) return delay;
+
+        setDevices(data);
+        for (const device of data) {
+          if (device.update_in_ms > 0) delay = Math.min(delay, device.update_in_ms);
+        }
+      } catch {
+        if (!controller.signal.aborted) setError("Mất kết nối");
+      }
+      return delay;
+    }
+
+    function refresh() {
+      clearTimeout(timer);
+      // Đọc tuần tự để phản hồi cũ không ghi đè trạng thái mới sau khi gửi lệnh.
+      const nextRequest = request.then(loadDevices);
+      request = nextRequest;
+      return nextRequest.then((delay) => {
+        if (!controller.signal.aborted && request === nextRequest) {
+          timer = setTimeout(refresh, delay);
+        }
+      });
+    }
+
+    refreshDevices.current = refresh;
+    timer = setTimeout(refresh, 0);
     return () => {
-      clearInterval(sensorTimer);
-      clearInterval(deviceTimer);
+      controller.abort();
+      clearTimeout(timer);
+      refreshDevices.current = null;
     };
-  }, [loadSensors, loadDevices]);
+  }, []);
 
   async function toggle(device) {
     const action = device.status === "ON" ? "OFF" : "ON";
-
-    // Giữ trạng thái hiện tại cho đến khi ESP32 xác nhận và hết thời gian trễ 3 giây.
-    pendingRef.current[device.id] = {
-      status: action,
-      previousStatus: device.status,
-      until: Date.now() + PENDING_MS,
-    };
-
-    setBusyId(device.id);
+    setSubmittingIds((ids) => new Set(ids).add(device.id));
     try {
-      await api.post(`/devices/${device.id}/control`, { action });
+      await api.post(`/devices/${device.id}/control`, { action }, {
+        timeout: DEVICE_REQUEST_TIMEOUT_MS,
+      });
     } catch (e) {
-      // Lệnh không gửi được: quay về trạng thái thật
-      delete pendingRef.current[device.id];
       alert(e.response?.data?.detail ?? "Lỗi điều khiển");
-      loadDevices();
     } finally {
-      setBusyId(null);
+      await refreshDevices.current?.();
+      setSubmittingIds((ids) => {
+        const remaining = new Set(ids);
+        remaining.delete(device.id);
+        return remaining;
+      });
     }
   }
 
@@ -176,7 +190,6 @@ export default function Dashboard() {
       <section className="sensor-cards">
         {latest.map((s) => {
           const Icon = ICON_BY_SENSOR[s.sensor.name] ?? Sun;
-          const normal = s.is_normal !== false;
           return (
             <div className="card sensor-card" key={s.sensor.id}>
               <div className="sensor-head">
@@ -184,11 +197,6 @@ export default function Dashboard() {
                   <Icon size={18} />
                   {s.sensor.name}
                 </span>
-                {/* Thẻ hiển thị trạng thái Normal / Abnormal (Bỏ comment khi cần sử dụng lại)
-                <span className={`badge ${normal ? "good" : "bad"}`}>
-                  {s.is_normal === null ? "--" : normal ? "Normal" : "Abnormal"}
-                </span>
-                */}
               </div>
               <div className="sensor-value">
                 {s.value === null ? "--" : `${s.value} ${s.sensor.unit ?? ""}`}
@@ -210,26 +218,8 @@ export default function Dashboard() {
             />
           </div>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart
-              data={series}
-              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-            >
-              {/* <XAxis
-                dataKey="time"
-                tick={AXIS_TICK}
-                tickLine={false}
-                axisLine={AXIS_LINE}
-              /> */}
-              <XAxis
-                dataKey="time"
-                interval={0}
-                padding={{ left: 12, right: 12 }}
-                tickMargin={8}
-                angle={-30}
-                tick={{ fontSize: 10, fill: "#6b7280" }}
-                tickLine={false}
-                axisLine={AXIS_LINE}
-              />
+            <LineChart data={series} margin={CHART_MARGIN}>
+              <XAxis {...TIME_AXIS} />
               <YAxis
                 domain={[0, 100]}
                 ticks={[20, 40, 60, 80, 100]}
@@ -237,9 +227,7 @@ export default function Dashboard() {
                 tickLine={false}
                 axisLine={AXIS_LINE}
               />
-              <Tooltip
-                formatter={(value, name) => [Number(value).toFixed(1), name]}
-              />
+              <Tooltip formatter={formatTooltip} />
               <Line
                 type="monotone"
                 dataKey="temperature"
@@ -268,20 +256,8 @@ export default function Dashboard() {
             <Legend items={[["#22c55e", "Light (lux)"]]} />
           </div>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart
-              data={series}
-              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-            >
-              <XAxis
-                dataKey="time"
-                interval={0}
-                padding={{ left: 12, right: 12 }}
-                tickMargin={8}
-                angle={-30}
-                tick={{ fontSize: 10, fill: "#6b7280" }}
-                tickLine={false}
-                axisLine={AXIS_LINE}
-              />
+            <LineChart data={series} margin={CHART_MARGIN}>
+              <XAxis {...TIME_AXIS} />
               <YAxis
                 domain={[0, lux.top]}
                 ticks={lux.ticks}
@@ -289,9 +265,7 @@ export default function Dashboard() {
                 tickLine={false}
                 axisLine={AXIS_LINE}
               />
-              <Tooltip
-                formatter={(value, name) => [Number(value).toFixed(1), name]}
-              />
+              <Tooltip formatter={formatTooltip} />
               <Line
                 type="monotone"
                 dataKey="light"
@@ -327,7 +301,7 @@ export default function Dashboard() {
                   aria-checked={on}
                   aria-label={`Bật tắt ${d.name}`}
                   className={`switch ${on ? "on" : ""}`}
-                  disabled={busyId === d.id || Boolean(pendingRef.current[d.id])}
+                  disabled={submittingIds.has(d.id) || d.pending || d.update_in_ms > 0}
                   onClick={() => toggle(d)}
                 >
                   <span />

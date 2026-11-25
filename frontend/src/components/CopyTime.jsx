@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 
-export default function CopyTime({ value }) {
+export default function CopyTime({ timestamp }) {
   const [copied, setCopied] = useState(false);
+  const value = timestamp.replace("T", " ");
 
   async function copy() {
     try {

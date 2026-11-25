@@ -57,11 +57,6 @@ export default function ActionHistory() {
       .then((r) => setData(r.data));
   }, [debouncedKeyword, deviceId, status, action, sort, page, size]);
 
-  function handleSortChange(e) {
-    setSort(e.target.value);
-    setPage(1);
-  }
-
   const withReset = (setter) => (e) => {
     setter(e.target.value);
     setPage(1);
@@ -97,7 +92,7 @@ export default function ActionHistory() {
         </label>
 
         <label className="control">
-          <select value={sort} onChange={handleSortChange}>
+          <select value={sort} onChange={withReset(setSort)}>
             <option value="" disabled>
               Sorted by Date/Time
             </option>
@@ -175,7 +170,7 @@ export default function ActionHistory() {
                   </span>
                 </td>
                 <td>
-                  <CopyTime value={it.recorded_at.replace("T", " ")} />
+                  <CopyTime timestamp={it.recorded_at} />
                 </td>
               </tr>
             ))}

@@ -1,5 +1,6 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timedelta
+from math import ceil
 from typing import Optional
 
 from sqlalchemy import (
@@ -13,9 +14,14 @@ from sqlalchemy import (
     String,
     func,
 )
+from sqlalchemy.dialects.mysql import DATETIME as MySQLDateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.config import vietnam_now
 from app.database import Base
+
+
+DEVICE_DISPLAY_DELAY = timedelta(seconds=1)
 
 
 class DeviceStatus(str, enum.Enum):
@@ -60,8 +66,17 @@ class Device(Base):
     status: Mapped[DeviceStatus] = mapped_column(
         Enum(DeviceStatus), nullable=False, default=DeviceStatus.OFF
     )
+    switch_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime().with_variant(MySQLDateTime(fsp=6), "mysql", "mariadb")
+    )  # UTC, thời điểm bắt đầu chờ cập nhật Dashboard
 
     actions: Mapped[list["ActionHistory"]] = relationship(back_populates="device")
+
+    def display_update_in_ms(self, now: datetime) -> int:
+        if self.switch_at is None:
+            return 0
+        remaining = self.switch_at + DEVICE_DISPLAY_DELAY - now
+        return max(0, ceil(remaining / timedelta(milliseconds=1)))
 
 
 class Sensor(Base):
@@ -88,7 +103,7 @@ class DataSensor(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     value: Mapped[float] = mapped_column(Double, nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.current_timestamp()
+        DateTime, nullable=False, default=vietnam_now, server_default=func.current_timestamp()
     )
     sensor_id: Mapped[int] = mapped_column(
         ForeignKey("sensors.id", ondelete="CASCADE"), nullable=False
@@ -111,7 +126,7 @@ class ActionHistory(Base):
         Enum(ActionStatus), nullable=False, default=ActionStatus.PENDING
     )
     recorded_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.current_timestamp()
+        DateTime, nullable=False, default=vietnam_now, server_default=func.current_timestamp()
     )
     user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

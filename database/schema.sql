@@ -1,15 +1,22 @@
 SET NAMES utf8mb4;
 USE smart_house;
 
+-- Tạo lại cấu trúc từ đầu và xóa dữ liệu hiện có trong các bảng dưới đây.
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS action_history, data_sensor, devices, sensors, users;
+DROP TABLE IF EXISTS
+    action_history,
+    data_sensor,
+    devices,
+    sensors,
+    users,
+    schema_migrations;
 SET FOREIGN_KEY_CHECKS = 1;
 
--- User: tài khoản sinh viên
+-- Tài khoản sinh viên
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,          -- hash bcrypt, không lưu mật khẩu gốc
+    password VARCHAR(255) NOT NULL COMMENT 'Hash bcrypt',
     full_name VARCHAR(255),
     student_id VARCHAR(20),
     class_name VARCHAR(20),
@@ -17,44 +24,47 @@ CREATE TABLE users (
     email VARCHAR(100),
     phone VARCHAR(20),
     avatar VARCHAR(255),
-    links JSON NULL                          -- {"github": "...", "figma": "...", "report_pdf": "..."}
+    links JSON
 );
 
--- Device: thiết bị điều khiển (LED)
+-- Thiết bị điều khiển
 CREATE TABLE devices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
-    status ENUM('ON', 'OFF') NOT NULL DEFAULT 'OFF'
+    status ENUM('ON', 'OFF') NOT NULL DEFAULT 'OFF',
+    switch_at DATETIME(6) COMMENT 'Mốc UTC tính độ trễ hiển thị trên Dashboard'
 );
 
--- Sensor: danh mục kênh đo, kèm ngưỡng bình thường
+-- Danh mục cảm biến và ngưỡng bình thường
 CREATE TABLE sensors (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
     unit VARCHAR(20),
-    min_normal DOUBLE NULL,
-    max_normal DOUBLE NULL
+    min_normal DOUBLE,
+    max_normal DOUBLE
 );
 
--- DataSensor: giá trị đo theo thời gian
+-- Lịch sử đo cảm biến
 CREATE TABLE data_sensor (
     id INT AUTO_INCREMENT PRIMARY KEY,
     value DOUBLE NOT NULL,
     recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     sensor_id INT NOT NULL,
+
     FOREIGN KEY (sensor_id) REFERENCES sensors(id) ON DELETE CASCADE,
     INDEX idx_sensor_time (sensor_id, recorded_at),
     INDEX idx_time (recorded_at)
 );
 
--- ActionHistory: lịch sử bật/tắt thiết bị
+-- Lịch sử bật/tắt thiết bị
 CREATE TABLE action_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     action ENUM('ON', 'OFF') NOT NULL,
     status ENUM('PENDING', 'SUCCESS', 'FAILED') NOT NULL DEFAULT 'PENDING',
     recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    user_id INT NULL,                        -- NULL = hệ thống/tự động
+    user_id INT COMMENT 'NULL khi thao tác tự động',
     device_id INT NOT NULL,
+
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (device_id) REFERENCES devices(id),
     INDEX idx_action_device_time (device_id, recorded_at),

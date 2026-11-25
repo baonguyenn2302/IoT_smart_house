@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import String, and_, cast, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import as_vietnam_time
 from app.database import get_db
 from app.models import ActionHistory, ActionStatus, ActionType, Device, User
 from app.schemas import ActionOut, Page
@@ -22,15 +23,15 @@ class ActionSort(str, enum.Enum):
     "",
     response_model=Page[ActionOut],
     summary="Lịch sử bật/tắt thiết bị",
-    description="Dùng cho bảng Action History. Hỗ trợ tìm kiếm (q), lọc và sắp xếp theo thời gian.",
+    description="Hiển thị giờ Việt Nam (UTC+7). Hỗ trợ tìm kiếm (q), lọc và sắp xếp theo thời gian.",
 )
 def list_actions(
     q: Optional[str] = Query(None, description="Từ khóa: tên thiết bị, người thao tác, ON/OFF, trạng thái, thời gian"),
     device_id: Optional[int] = Query(None, description="Lọc theo thiết bị (1=LED 1, 2=LED 2)"),
     status: Optional[ActionStatus] = Query(None, description="PENDING, SUCCESS hoặc FAILED"),
     action: Optional[ActionType] = Query(None, description="Lọc theo hành động: ON hoặc OFF"),
-    from_time: Optional[datetime] = Query(None, alias="from"),
-    to_time: Optional[datetime] = Query(None, alias="to"),
+    from_time: Optional[datetime] = Query(None, alias="from", description="Mặc định dùng giờ Việt Nam"),
+    to_time: Optional[datetime] = Query(None, alias="to", description="Mặc định dùng giờ Việt Nam"),
     sort: ActionSort = Query(ActionSort.TIME_DESC, description="Sắp xếp theo thời gian: TIME_DESC hoặc TIME_ASC"),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=200),
@@ -74,9 +75,9 @@ def list_actions(
     if action is not None:
         query = query.where(ActionHistory.action == action)
     if from_time is not None:
-        query = query.where(ActionHistory.recorded_at >= from_time)
+        query = query.where(ActionHistory.recorded_at >= as_vietnam_time(from_time))
     if to_time is not None:
-        query = query.where(ActionHistory.recorded_at <= to_time)
+        query = query.where(ActionHistory.recorded_at <= as_vietnam_time(to_time))
 
     order_by = (
         (ActionHistory.recorded_at.desc(), ActionHistory.id.desc())
@@ -91,4 +92,4 @@ def list_actions(
         .limit(size)
     ).unique().all()
 
-    return Page(items=items, total=total, page=page, size=size)
+    return Page[ActionOut](items=items, total=total, page=page, size=size)

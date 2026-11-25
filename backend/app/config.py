@@ -1,6 +1,20 @@
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+VIETNAM_TIMEZONE = timezone(timedelta(hours=7))
+
+
+def as_vietnam_time(value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        value = value.astimezone(VIETNAM_TIMEZONE)
+    return value.replace(tzinfo=None)
+
+
+def vietnam_now() -> datetime:
+    return datetime.now(VIETNAM_TIMEZONE).replace(tzinfo=None)
 
 
 class Settings(BaseSettings):
