@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import { GitBranch, Palette, FileText } from "lucide-react";
+import reportPdfUrl from "../../../report/report.pdf?url";
 import { api } from "../api/client";
-
-// File PDF được phục vụ từ frontend/public/docs.
-const DEFAULT_LINKS = {
-  report_pdf: "/docs/SRS_IoT_B23DCCN075.pdf",
-};
 
 const RESOURCE_META = [
   {
@@ -29,7 +25,7 @@ const RESOURCE_META = [
     label: "Download PDF",
     icon: FileText,
     download: true,
-    fileName: "STS_Iot_B23DCCN075.pdf",
+    fileName: "report.pdf",
   },
 ];
 
@@ -100,11 +96,8 @@ export default function Profile() {
       <section className="resource-grid">
         {RESOURCE_META.map(
           ({ key, title, desc, label, icon: Icon, download, fileName }) => {
-            // PDF phải dùng file local vì link cũ trong hồ sơ trỏ đến /srs.pdf không tồn tại.
             const href =
-              key === "report_pdf"
-                ? DEFAULT_LINKS.report_pdf
-                : user.links?.[key] || "#";
+              key === "report_pdf" ? reportPdfUrl : user.links?.[key] || "#";
             return (
               <div className="card resource" key={key}>
                 <div className="resource-head">
